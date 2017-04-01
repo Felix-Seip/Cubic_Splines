@@ -1,56 +1,81 @@
 ﻿using Math_Collection.LGS;
-using Math_Collection.LinearAlgebra.Matrices;
-using System;
+using RuntimeFunctionParser;
 using System.Collections.Generic;
-using System.Globalization;
-using System.Linq;
-using System.Reflection;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Media;
+using System.Windows.Shapes;
 
 namespace SplineInterpolationInterface
 {
-    public class Spline
+    public class Spline : Shape
     {
         private List<Point> pointList;
+        private GeometryGroup splinesLines;
+
+        protected override Geometry DefiningGeometry
+        {
+            get
+            {
+                return splinesLines;
+            }
+        }
+
         public Spline(List<Point> arrPointList)
         {
             pointList = arrPointList;
+            splinesLines = new GeometryGroup();
+            Plot();
         }
 
-        public List<Point> Plot()
+        private void Plot()
         {
             List<double> hList = CalculateH();
             List<double> gList = CalculateG(hList);
-            Matrix m = CreateSplineMatrix(hList);
+            Math_Collection.LinearAlgebra.Matrices.Matrix m = CreateSplineMatrix(hList);
 
-            double[] bla1 = gList.ToArray();
-            LGS lgs = new LGS(m, new Math_Collection.LinearAlgebra.Vectors.Vector(bla1));
+            double[] gListAsArray = gList.ToArray();
+            LGS lgs = new LGS(m, new Math_Collection.LinearAlgebra.Vectors.Vector(gListAsArray));
             Math_Collection.LinearAlgebra.Vectors.Vector outcome = lgs.Solve(LGS.SolveAlgorithm.Gauß);
+
+            string sOutcome = outcome.ToString();
 
             List<double> bList = CalculateB(outcome, hList);
             List<double> dList = CalculateD(outcome, hList);
-            return SolveSplineFunctions(CreateSplineFunctions(bList, outcome, dList));
+            SolveSplineFunctions(CreateSplineFunctions(bList, outcome, dList));
         }
 
-        private List<Point> SolveSplineFunctions(List<string> splineFunctionList)
+        private void SolveSplineFunctions(List<string> splineFunctionList)
         {
-            List<Point> graphPoints = new List<Point>(); 
-            int splineFunctionIndex = 0;
+            List<Point> graphPoints = new List<Point>();
 
-            for (int i = 0; i < pointList.Count-1; i++)
+            Parser parser = new Parser();
+            for (int i = 1; i < pointList.Count; i++)
             {
-                double x = pointList[i].X;
-                while (x < pointList[i + 1].X)
+                double x = 0;
+
+                Function func = parser.ParseFunction(splineFunctionList[i - 1]);
+                while (x <= pointList[i].X - pointList[i - 1].X)
                 {
-                    double y = FunctionParser.FunctionParser.Parse(splineFunctionList[splineFunctionIndex], x);
-                    graphPoints.Add(new Point(x * 30, y * 30));
-                    x+=0.25;
+                    double y = func.Solve(x, 0);
+                    graphPoints.Add(new Point(pointList[i - 1].X + x, y));
+                    x += .25;
                 }
-                splineFunctionIndex++;
             }
-            return graphPoints;
+
+            FillGeometryGroup(graphPoints);
+        }
+
+        private void FillGeometryGroup(List<Point> graphPoints)
+        {
+            for (int i = 1; i < graphPoints.Count; i++)
+            {
+                LineGeometry line = new LineGeometry(graphPoints[i - 1], graphPoints[i]);
+                splinesLines.Children.Add(line);
+            }
+
+            Stroke = Brushes.Black;
+            StrokeThickness = 1;
+
         }
 
         private List<string> CreateSplineFunctions(List<double> bList, Math_Collection.LinearAlgebra.Vectors.Vector c, List<double> dList)
@@ -58,13 +83,14 @@ namespace SplineInterpolationInterface
             List<string> splineFunctionList = new List<string>();
             for (int i = 1; i < pointList.Count; i++)
             {
-                splineFunctionList.Add(pointList[i - 1].Y + "+" + bList[i - 1] + "*x+" + c[i - 1] + "*x^2+" + dList[i - 1] + "*x^3");
+                splineFunctionList.Add("" + pointList[i - 1].Y +
+                    (bList[i - 1] < 0 ? "+(" : "+(") + bList[i - 1] + (c[i - 1] < 0 ? "*x)+(" : "*x)+(") +
+                    c[i - 1] + (dList[i - 1] < 0 ? "*(x^2))+(" : "*(x^2))+(") + dList[i - 1] + "*(x^3))");
             }
             return splineFunctionList;
         }
 
-
-        private Matrix CreateSplineMatrix(List<double> hList)
+        private Math_Collection.LinearAlgebra.Matrices.Matrix CreateSplineMatrix(List<double> hList)
         {
             //Matrix m = new Matrix();
             double[,] splineMatrixValues = new double[pointList.Count, pointList.Count];
@@ -92,8 +118,9 @@ namespace SplineInterpolationInterface
                     }
                 }
             }
-            
-            return new Matrix(splineMatrixValues);
+
+            string matrix = new Math_Collection.LinearAlgebra.Matrices.Matrix(splineMatrixValues).ToString();
+            return new Math_Collection.LinearAlgebra.Matrices.Matrix(splineMatrixValues);
         }
 
         private List<double> CalculateH()
@@ -111,7 +138,8 @@ namespace SplineInterpolationInterface
             List<double> bList = new List<double>();
             for (int i = 1; i < pointList.Count; i++)
             {
-                double b = ((pointList[i].Y - pointList[i - 1].Y) / hList[i - 1]) - ((hList[i - 1] / 3) * (2 * c[i - 1] + c[i]));
+                double b = ((pointList[i].Y - pointList[i - 1].Y) / hList[i - 1])
+                    - ((hList[i - 1] / 3) * ((2 * c[i - 1]) + c[i]));
                 bList.Add(b);
             }
             return bList;

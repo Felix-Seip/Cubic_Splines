@@ -38,6 +38,9 @@
     <Reference Include="Math_Collection">
       <HintPath>..\..\Math_Collection\Math_Collection\Math_Collection\Math_Collection\bin\Debug\Math_Collection.dll</HintPath>
     </Reference>
+    <Reference Include="RuntimeFunctionParser">
+      <HintPath>..\RuntimeFunctionParser.dll</HintPath>
+    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Data" />
     <Reference Include="System.Xml" />
